@@ -1,6 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.api.router import api_router
+from app.api.ws import manager
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -16,12 +18,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Incluir Rutas REST API v1
+app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Endpoint WebSocket para transmisión en tiempo real de estados de habitación
+@app.websocket("/ws/rooms")
+async def websocket_rooms_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Mantiene viva la conexión WebSocket escuchando mensajes entrantes del cliente si aplica
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
 @app.get("/")
 def read_root():
     return {
         "status": "ok",
         "service": settings.PROJECT_NAME,
-        "docs": "/docs"
+        "docs": "/docs",
+        "ws_rooms": "/ws/rooms"
     }
 
 @app.get("/health")
