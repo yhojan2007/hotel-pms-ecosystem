@@ -166,14 +166,22 @@ async def execute_tool_call(tool_name: str, tool_input: Dict[str, Any], db: Asyn
     elif tool_name == "generate_payment_link":
         booking_id = tool_input["booking_id"]
         monto = tool_input["monto"]
-        # En una app real, aquí se llama a la API de Wallbit / Stripe / MercadoPago.
-        # Retornamos una URL de demostración que permite simular el pago web.
-        payment_link = f"http://localhost:8000/api/v1/webhooks/mock-pay?booking_id={booking_id}&monto={monto}"
+        provider = tool_input.get("proveedor", "mock")
+
+        from app.services.payment_gateways.factory import PaymentGatewayFactory
+        gateway = PaymentGatewayFactory.get_gateway(provider)
+        payment_info = gateway.create_payment_link(
+            booking_id=booking_id,
+            monto=monto,
+            descripcion=f"Reserva Hotel PMS #{booking_id}"
+        )
+
         return {
             "booking_id": booking_id,
             "monto": monto,
-            "payment_link": payment_link,
-            "instrucciones": "Envía este enlace de pago al cliente."
+            "payment_link": payment_info["payment_url"],
+            "proveedor": provider,
+            "instrucciones": "Envía este enlace de pago al cliente por WhatsApp."
         }
 
     return {"error": f"Herramienta '{tool_name}' no implementada."}

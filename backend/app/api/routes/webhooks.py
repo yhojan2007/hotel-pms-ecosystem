@@ -5,8 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_async_db
 from app.agent.transcription import transcribe_audio_from_url
 from app.agent import runner as agent_runner
-from app.services import payment_service
+from app.agent.zavu_client import send_whatsapp_message
+from app.services import payment_service, booking_service
 from app.schemas.payment import PaymentCreate
+from app.services.payment_gateways.factory import PaymentGatewayFactory
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks & Agente IA"])
 
@@ -23,7 +25,6 @@ async def zavu_whatsapp_webhook(request: Request, db: AsyncSession = Depends(get
     """
     payload = await request.json()
     
-    # Extraer campos estándar del payload de Zavu / WhatsApp API
     sender_contact = payload.get("from") or payload.get("sender", {}).get("phone", "+573000000000")
     message_type = payload.get("type", "text")
     
@@ -39,7 +40,6 @@ async def zavu_whatsapp_webhook(request: Request, db: AsyncSession = Depends(get
     if not text_to_process:
         return {"status": "ignored", "reason": "No text content found"}
 
-    # Disparar la lógica autónoma del agente de IA
     agent_response = await agent_runner.process_incoming_message(sender_contact, text_to_process, db)
     return {
         "status": "success",
@@ -70,24 +70,85 @@ async def simulate_whatsapp_message(payload: AgentSimRequest, db: AsyncSession =
         "agent_response": agent_response
     }
 
-@router.get("/mock-pay")
-async def mock_payment_webhook(booking_id: int, monto: float, db: AsyncSession = Depends(get_async_db)):
+@router.post("/payments/{provider}")
+@router.get("/payments/{provider}")
+async def unified_payment_webhook(
+    provider: str,
+    request: Request,
+    booking_id: Optional[int] = None,
+    monto: Optional[float] = None,
+    db: AsyncSession = Depends(get_async_db)
+):
     """
-    Webhook / Link de simulación de pago.
-    Al acceder a este enlace o ser invocado por la pasarela de pago,
-    impacta la base de datos, cambia la habitación a 'ocupada' (Rojo)
-    y notifica inmediatamente por WebSocket al PMS en tiempo real.
+    Webhook unificado de confirmación de pago modular (Wallbit, MercadoPago, Stripe, Mock).
+    
+    Flujo automático:
+    1. Procesa el payload según el proveedor.
+    2. Registra el pago en estado CONFIRMADO.
+    3. Cambia la reserva a CONFIRMADA y la habitación a OCUPADA (Rojo) en el PMS.
+    4. Emite evento por WebSocket en tiempo real al frontend.
+    5. Envía comprobante de reserva confirmado por WhatsApp al huésped a través de Zavu.
     """
+    payload = {}
+    if request.method == "POST":
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+
+    if booking_id:
+        payload["booking_id"] = booking_id
+    if monto:
+        payload["monto"] = monto
+
+    # Instanciar el gateway correspondiente según el proveedor usando Factory
+    gateway = PaymentGatewayFactory.get_gateway(provider)
+    parsed_data = gateway.parse_webhook_payload(payload)
+
+    target_booking_id = parsed_data.get("booking_id")
+    target_monto = parsed_data.get("monto")
+    is_success = parsed_data.get("is_success", True)
+    referencia = parsed_data.get("referencia", f"ref_{provider}_{target_booking_id}")
+
+    if not target_booking_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Falta el ID de reserva en el payload del webhook.")
+
+    # 1. Registrar pago y actualizar estados de Reserva y Habitación
     payment_in = PaymentCreate(
-        booking_id=booking_id,
-        monto=monto,
-        proveedor="mock_gateway",
-        referencia_externa=f"ref_pay_{booking_id}"
+        booking_id=target_booking_id,
+        monto=target_monto or 100.0,
+        proveedor=provider,
+        referencia_externa=referencia
     )
-    payment = await payment_service.record_payment(db, payment_in, is_confirmed=True)
+    payment = await payment_service.record_payment(db, payment_in, is_confirmed=is_success)
+
+    # 2. Enviar recibo de confirmación por WhatsApp si fue exitoso
+    booking = await booking_service.get_booking_by_id(db, target_booking_id)
+    if is_success and booking and booking.guest:
+        whatsapp_receipt = (
+            f"🎉 *¡PAGO CONFIRMADO EXITOSAMENTE!* 🎉\n\n"
+            f"Estimado/a *{booking.guest.nombre}*,\n"
+            f"Hemos recibido tu pago de *${payment.monto} USD* a través de *{provider.upper()}*.\n\n"
+            f"📌 *Detalles de tu Reserva #{booking.id}*:\n"
+            f"• Habitación: *{booking.room.nombre}* ({booking.room.tipo.capitalize()})\n"
+            f"• Check-in: *{booking.fecha_checkin}*\n"
+            f"• Check-out: *{booking.fecha_checkout}*\n"
+            f"• Referencia de Pago: `{referencia}`\n\n"
+            f"Tu habitación se encuentra lista. ¡Te esperamos en nuestro hotel! 🏨✨"
+        )
+        await send_whatsapp_message(booking.guest.contacto, whatsapp_receipt)
 
     return {
         "status": "success",
-        "message": "¡Pago confirmado! La reserva ha sido confirmada y la habitación cambió a OCUPADA (Rojo) en el PMS.",
-        "payment": payment
+        "provider": provider,
+        "is_confirmed": is_success,
+        "message": f"Pago procesado por {provider.upper()}. Habitación marcada como OCUPADA (Rojo) en el PMS.",
+        "payment_id": payment.id,
+        "booking_id": target_booking_id
     }
+
+@router.get("/mock-pay")
+async def mock_pay_alias(booking_id: int, monto: float, db: AsyncSession = Depends(get_async_db)):
+    """Alias rápido de webhook para enlaces de prueba."""
+    request = Request(scope={"type": "http", "method": "GET"})
+    return await unified_payment_webhook("mock", request, booking_id=booking_id, monto=monto, db=db)
