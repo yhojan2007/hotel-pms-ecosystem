@@ -1,0 +1,5 @@
+# Override local para desarrollo
+services:
+  backend:
+    environment:
+      - DEBUG=true

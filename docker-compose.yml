@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: hotel_pms_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pms_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pms_password_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-hotel_pms_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pms_user} -d ${POSTGRES_DB:-hotel_pms_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pms_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hotel_pms_backend
+    restart: always
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-pms_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-pms_password_secret}
+      - POSTGRES_DB=${POSTGRES_DB:-hotel_pms_db}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-pms_user}:${POSTGRES_PASSWORD:-pms_password_secret}@db:5432/${POSTGRES_DB:-hotel_pms_db}
+      - SYNC_DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-pms_user}:${POSTGRES_PASSWORD:-pms_password_secret}@db:5432/${POSTGRES_DB:-hotel_pms_db}
+      - PROJECT_NAME=${PROJECT_NAME:-"Hotel PMS Ecosystem"}
+      - API_V1_STR=${API_V1_STR:-/api/v1}
+      - SECRET_KEY=${SECRET_KEY:-change_this_secret_key_for_production_demo}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ZAVU_API_KEY=${ZAVU_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - pms_network
+
+volumes:
+  postgres_data:
+
+networks:
+  pms_network:
+    driver: bridge
