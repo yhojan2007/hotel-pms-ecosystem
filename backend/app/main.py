@@ -1,8 +1,11 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.api.router import api_router
 from app.api.ws import manager
+from app.db.session import get_async_db
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -12,7 +15,7 @@ app = FastAPI(
 # Configuración CORS para permitir conexiones desde el frontend de Next.js
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,8 +45,10 @@ def read_root():
     }
 
 @app.get("/health")
-def health_check():
+async def health_check(db: AsyncSession = Depends(get_async_db)):
+    await db.execute(text("SELECT 1"))
     return {
         "status": "healthy",
-        "database": "connected"
+        "database": "connected",
+        "environment": settings.ENVIRONMENT
     }

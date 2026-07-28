@@ -1,11 +1,12 @@
 from typing import Dict, Any, Optional
+from app.core.config import settings
 from app.services.payment_gateways.base import BasePaymentGateway
 
 class MockPaymentGateway(BasePaymentGateway):
     """Pasarela de pago de prueba para entornos de desarrollo y demostración en vivo."""
 
     def create_payment_link(self, booking_id: int, monto: float, descripcion: str) -> Dict[str, Any]:
-        payment_url = f"http://localhost:8000/api/v1/webhooks/payments/mock?booking_id={booking_id}&monto={monto}"
+        payment_url = f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}{settings.API_V1_STR}/webhooks/payments/mock?booking_id={booking_id}&monto={monto}"
         return {
             "provider": "mock",
             "payment_url": payment_url,

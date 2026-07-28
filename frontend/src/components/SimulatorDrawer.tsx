@@ -40,7 +40,7 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
     setLoading(true);
     setResponseLog(null);
     try {
-      const res = await simulateMockPayment(1, 180.0);
+      const res = await simulateMockPayment();
       setResponseLog(res.message || 'Pago confirmado exitosamente.');
     } catch (err: any) {
       setResponseLog(`Error: ${err.message}`);

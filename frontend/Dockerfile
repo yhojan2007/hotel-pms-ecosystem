@@ -7,9 +7,18 @@ RUN npm install
 
 COPY . .
 
+ARG NEXT_PUBLIC_API_URL=/api/v1
+ARG NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws/rooms
+ARG API_INTERNAL_URL=http://backend:8000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
+ENV API_INTERNAL_URL=$API_INTERNAL_URL
+
+RUN npm run build
+
 EXPOSE 3000
 
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "start"]

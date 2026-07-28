@@ -18,7 +18,8 @@ export function useRealtimeRooms() {
     loadInitialRooms();
 
     // Establecer conexión WebSocket nativa con FastAPI
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/rooms';
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL
+      || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/rooms`;
     let socket: WebSocket | null = null;
     let reconnectTimer: NodeJS.Timeout;
 

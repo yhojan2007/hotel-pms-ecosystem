@@ -5,9 +5,17 @@ from app.models.payment import Payment, PaymentStatus
 from app.models.booking import BookingStatus
 from app.schemas.payment import PaymentCreate
 from app.services.booking_service import update_booking_status
-from app.services.guest_service import update_guest_spending, get_booking_by_id
+from app.services.guest_service import update_guest_spending
 
 async def record_payment(db: AsyncSession, payment_in: PaymentCreate, is_confirmed: bool = True) -> Payment:
+    if payment_in.referencia_externa:
+        result = await db.execute(
+            select(Payment).filter(Payment.referencia_externa == payment_in.referencia_externa)
+        )
+        existing_payment = result.scalars().first()
+        if existing_payment:
+            return existing_payment
+
     status = PaymentStatus.CONFIRMADO if is_confirmed else PaymentStatus.FALLIDO
 
     payment = Payment(

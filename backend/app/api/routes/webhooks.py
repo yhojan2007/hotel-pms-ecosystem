@@ -6,6 +6,7 @@ from app.db.session import get_async_db
 from app.agent.transcription import transcribe_audio_from_url
 from app.agent import runner as agent_runner
 from app.agent.zavu_client import send_whatsapp_message
+from app.core.config import settings
 from app.services import payment_service, booking_service
 from app.schemas.payment import PaymentCreate
 from app.services.payment_gateways.factory import PaymentGatewayFactory
@@ -89,6 +90,15 @@ async def unified_payment_webhook(
     4. Emite evento por WebSocket en tiempo real al frontend.
     5. Envía comprobante de reserva confirmado por WhatsApp al huésped a través de Zavu.
     """
+    if settings.PAYMENT_WEBHOOK_SECRET and provider.lower() != "mock":
+        provided_secret = (
+            request.headers.get("x-webhook-secret")
+            or request.headers.get("x-payment-webhook-secret")
+            or request.headers.get("authorization", "").replace("Bearer ", "")
+        )
+        if provided_secret != settings.PAYMENT_WEBHOOK_SECRET:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Webhook no autorizado.")
+
     payload = {}
     if request.method == "POST":
         try:
@@ -148,7 +158,21 @@ async def unified_payment_webhook(
     }
 
 @router.get("/mock-pay")
-async def mock_pay_alias(booking_id: int, monto: float, db: AsyncSession = Depends(get_async_db)):
+async def mock_pay_alias(
+    booking_id: Optional[int] = None,
+    monto: Optional[float] = None,
+    db: AsyncSession = Depends(get_async_db)
+):
     """Alias rápido de webhook para enlaces de prueba."""
+    if booking_id is None:
+        latest_pending = await booking_service.get_latest_pending_booking(db)
+        if not latest_pending:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No hay reservas pendientes para confirmar."
+            )
+        booking_id = latest_pending.id
+        monto = float(latest_pending.monto)
+
     request = Request(scope={"type": "http", "method": "GET"})
     return await unified_payment_webhook("mock", request, booking_id=booking_id, monto=monto, db=db)

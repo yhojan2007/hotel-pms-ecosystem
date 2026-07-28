@@ -107,11 +107,23 @@ async def process_incoming_message(
     msg_lower = message_text.lower()
 
     if "reservar" in msg_lower or "reserva" in msg_lower or "confirmar" in msg_lower:
+        availability = await execute_tool_call("check_room_availability", {
+            "fecha_checkin": "2026-08-01",
+            "fecha_checkout": "2026-08-05"
+        }, db)
+        available_rooms = availability.get("habitaciones_disponibles", [])
+        if not available_rooms:
+            resp_text = "Lo siento, ya no hay habitaciones disponibles para esas fechas de demo."
+            await send_whatsapp_message(sender_contact, resp_text)
+            return resp_text
+
+        selected_room = available_rooms[0]
+
         # Simula llamada a create_prebooking y generate_payment_link
         tool_res = await execute_tool_call("create_prebooking", {
             "guest_name": "Huésped Demo",
             "guest_contact": sender_contact,
-            "room_id": 1,
+            "room_id": selected_room["id"],
             "fecha_checkin": "2026-08-01",
             "fecha_checkout": "2026-08-05"
         }, db)

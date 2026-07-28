@@ -4,7 +4,10 @@ from typing import Optional
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Hotel PMS Ecosystem"
     API_V1_STR: str = "/api/v1"
+    ENVIRONMENT: str = "production"
     SECRET_KEY: str = "change_this_secret_key_for_production_demo"
+    CORS_ORIGINS: str = "http://localhost:3000"
+    BACKEND_PUBLIC_URL: str = "http://localhost:8000"
     
     # Configuración Base de Datos
     POSTGRES_SERVER: str = "db"
@@ -18,7 +21,11 @@ class Settings(BaseSettings):
     
     # Integraciones futuras (Fases 3 y 5)
     ANTHROPIC_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
+    ZAVUDEV_API_KEY: Optional[str] = None
     ZAVU_API_KEY: Optional[str] = None
+    ZAVU_PHONE_NUMBER_ID: Optional[str] = None
+    PAYMENT_WEBHOOK_SECRET: Optional[str] = None
     
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -35,5 +42,8 @@ class Settings(BaseSettings):
         if self.SYNC_DATABASE_URL:
             return self.SYNC_DATABASE_URL
         return f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
+    def get_cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
 settings = Settings()

@@ -1,7 +1,7 @@
 import httpx
 import logging
-import os
 from typing import Optional
+from app.core.config import settings
 
 logger = logging.getLogger("transcription")
 
@@ -12,7 +12,7 @@ async def transcribe_audio_from_url(audio_url: str) -> Optional[str]:
     Si no hay clave o para pruebas locales offline, provee un fallback inteligente.
     """
     logger.info(f"Procesando transcripción de audio desde URL: {audio_url}")
-    openai_key = os.getenv("OPENAI_API_KEY")
+    openai_key = settings.OPENAI_API_KEY
 
     if openai_key and not audio_url.startswith("mock://"):
         try:

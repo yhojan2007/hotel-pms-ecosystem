@@ -91,6 +91,9 @@ async def execute_tool_call(tool_name: str, tool_input: Dict[str, Any], db: Asyn
         except ValueError:
             return {"error": "Formato de fecha inválido. Utiliza YYYY-MM-DD."}
 
+        if checkout <= checkin:
+            return {"error": "La fecha de check-out debe ser posterior a la fecha de check-in."}
+
         all_rooms = await room_service.get_all_rooms(db)
         available_rooms = []
 
@@ -125,6 +128,9 @@ async def execute_tool_call(tool_name: str, tool_input: Dict[str, Any], db: Asyn
             checkout = date.fromisoformat(tool_input["fecha_checkout"])
         except ValueError:
             return {"error": "Formato de fecha inválido."}
+
+        if checkout <= checkin:
+            return {"error": "La fecha de check-out debe ser posterior a la fecha de check-in."}
 
         room = await room_service.get_room_by_id(db, tool_input["room_id"])
         if not room:
