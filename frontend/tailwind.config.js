@@ -1,4 +1,4 @@
-/** @type {import('tailwindcss').Config} */
+/** Tokens del PMS (colores de estado y sombras glow). @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",

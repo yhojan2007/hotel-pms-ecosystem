@@ -1,4 +1,11 @@
+/**
+ * Layout raíz de Next.js App Router.
+ * Aplica metadata SEO, idioma y el fondo global del PMS.
+ */
+
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
+
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -6,11 +13,11 @@ export const metadata: Metadata = {
   description: 'Dashboard en tiempo real con agente de WhatsApp e integraciones',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+interface RootLayoutProps {
+  children: ReactNode;
+}
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="es">
       <body className="antialiased bg-[#090d16] text-gray-100 min-h-screen">

@@ -1,24 +1,30 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Send, Mic, CreditCard, Sparkles, MessageSquare, CheckCircle } from 'lucide-react';
-import { simulateWhatsAppAgent, simulateMockPayment } from '@/lib/api';
+/**
+ * Drawer de demo: dispara el agente (`/webhooks/agent-sim`) y el pago mock
+ * para ver el grid cambiar de color sin WhatsApp ni pasarela reales.
+ */
 
-interface SimulatorDrawerProps {
+import { useState } from 'react';
+import { CheckCircle, CreditCard, MessageSquare, Mic, Send, Sparkles, X } from 'lucide-react';
+
+import { simulateMockPayment, simulateWhatsAppAgent } from '@/lib/api';
+
+export interface SimulatorDrawerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClose }) => {
-  const [senderContact, setSenderContact] = useState('+573001234567');
-  const [messageText, setMessageText] = useState('');
-  const [isAudio, setIsAudio] = useState(false);
-  const [loading, setLoading] = useState(false);
+export function SimulatorDrawer({ isOpen, onClose }: SimulatorDrawerProps) {
+  const [senderContact, setSenderContact] = useState<string>('+573001234567');
+  const [messageText, setMessageText] = useState<string>('');
+  const [isAudio, setIsAudio] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [responseLog, setResponseLog] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSendSimulatedMessage = async (textToSend?: string) => {
+  const handleSendSimulatedMessage = async (textToSend?: string): Promise<void> => {
     setLoading(true);
     setResponseLog(null);
     try {
@@ -29,21 +35,23 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
         isAudio ? 'mock://audio_nota_de_voz.ogg' : undefined
       );
       setResponseLog(res.agent_response || 'Mensaje procesado correctamente.');
-    } catch (err: any) {
-      setResponseLog(`Error: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setResponseLog(`Error: ${message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSimulatePayment = async () => {
+  const handleSimulatePayment = async (): Promise<void> => {
     setLoading(true);
     setResponseLog(null);
     try {
       const res = await simulateMockPayment();
       setResponseLog(res.message || 'Pago confirmado exitosamente.');
-    } catch (err: any) {
-      setResponseLog(`Error: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setResponseLog(`Error: ${message}`);
     } finally {
       setLoading(false);
     }
@@ -52,9 +60,7 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm flex justify-end transition-opacity">
       <div className="w-full max-w-md glass-panel border-l border-gray-800 h-full p-6 flex flex-col justify-between shadow-2xl overflow-y-auto">
-        
         <div>
-          {/* Cabecera Drawer */}
           <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-800">
             <div className="flex items-center space-x-2">
               <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
@@ -66,6 +72,7 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
               </div>
             </div>
             <button
+              type="button"
               onClick={onClose}
               className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800"
             >
@@ -73,7 +80,6 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
             </button>
           </div>
 
-          {/* Formulario de Entrada */}
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
@@ -87,15 +93,18 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
               />
             </div>
 
-            {/* Accesos Rápidos de Demo */}
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Acciones Rápidas de Demo:
               </label>
               <div className="grid grid-cols-1 gap-2">
-                
                 <button
-                  onClick={() => handleSendSimulatedMessage('Hola, ¿tienen habitaciones disponibles del 1 al 5 de agosto?')}
+                  type="button"
+                  onClick={() =>
+                    handleSendSimulatedMessage(
+                      'Hola, ¿tienen habitaciones disponibles del 1 al 5 de agosto?'
+                    )
+                  }
                   disabled={loading}
                   className="flex items-center justify-between p-3 bg-gray-800/60 hover:bg-gray-800 border border-gray-700/60 rounded-xl text-xs text-left text-gray-200 transition-colors"
                 >
@@ -107,7 +116,12 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
                 </button>
 
                 <button
-                  onClick={() => handleSendSimulatedMessage('Me gustaría reservar la Habitación 101 a nombre de Carlos Mendoza del 1 al 5 de agosto')}
+                  type="button"
+                  onClick={() =>
+                    handleSendSimulatedMessage(
+                      'Me gustaría reservar la Habitación 101 a nombre de Carlos Mendoza del 1 al 5 de agosto'
+                    )
+                  }
                   disabled={loading}
                   className="flex items-center justify-between p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-xs text-left text-amber-300 transition-colors"
                 >
@@ -119,6 +133,7 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
                 </button>
 
                 <button
+                  type="button"
                   onClick={handleSimulatePayment}
                   disabled={loading}
                   className="flex items-center justify-between p-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-xl text-xs text-left text-rose-300 transition-colors"
@@ -129,17 +144,16 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
                   </span>
                   <span className="text-[10px] text-rose-400">Webhook</span>
                 </button>
-
               </div>
             </div>
 
-            {/* Campo Libre de Mensaje */}
             <div className="pt-2">
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   Mensaje Personalizado
                 </label>
                 <button
+                  type="button"
                   onClick={() => setIsAudio(!isAudio)}
                   className={`text-xs px-2 py-0.5 rounded-md flex items-center gap-1 ${
                     isAudio ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400'
@@ -160,17 +174,22 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
               />
 
               <button
+                type="button"
                 onClick={() => handleSendSimulatedMessage()}
                 disabled={loading}
                 className="w-full mt-2 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
               >
-                {loading ? 'Procesando con Agente IA...' : <><Send className="w-4 h-4" /> Enviar Mensaje al Agente</>}
+                {loading ? (
+                  'Procesando con Agente IA...'
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" /> Enviar Mensaje al Agente
+                  </>
+                )}
               </button>
             </div>
-
           </div>
 
-          {/* Respuesta del Agente */}
           {responseLog && (
             <div className="mt-6 p-4 bg-gray-900/90 border border-gray-700/80 rounded-xl space-y-2">
               <div className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
@@ -181,16 +200,15 @@ export const SimulatorDrawer: React.FC<SimulatorDrawerProps> = ({ isOpen, onClos
               </p>
             </div>
           )}
-
         </div>
 
         <div className="pt-4 border-t border-gray-800 text-center">
           <p className="text-[11px] text-gray-500">
-            Al ejecutar cualquier acción, el WebSocket enviará el evento en tiempo real y el PMS cambiará de color instantáneamente.
+            Al ejecutar cualquier acción, el WebSocket enviará el evento en tiempo real y el PMS
+            cambiará de color instantáneamente.
           </p>
         </div>
-
       </div>
     </div>
   );
-};
+}

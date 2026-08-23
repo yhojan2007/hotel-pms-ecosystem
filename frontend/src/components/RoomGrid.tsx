@@ -1,39 +1,42 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Room } from '@/lib/api';
-import { RoomCard } from './RoomCard';
-import { LayoutGrid, Filter, CheckCircle2, Clock, UserCheck } from 'lucide-react';
+/**
+ * Grid filtrable de habitaciones con métricas por color de estado.
+ */
 
-interface RoomGridProps {
+import { useMemo, useState } from 'react';
+import { CheckCircle2, Clock, LayoutGrid, UserCheck } from 'lucide-react';
+
+import { type Room, type RoomStatus } from '@/lib/api';
+
+import { RoomCard } from './RoomCard';
+
+export type RoomFilter = 'todos' | RoomStatus;
+
+export interface RoomGridProps {
   rooms: Room[];
   lastUpdatedRoomId: number | null;
-  onStatusChange: (roomId: number, estado: 'disponible' | 'pendiente' | 'ocupada') => void;
+  onStatusChange: (roomId: number, estado: RoomStatus) => void;
 }
 
-export const RoomGrid: React.FC<RoomGridProps> = ({ rooms, lastUpdatedRoomId, onStatusChange }) => {
-  const [filter, setFilter] = useState<'todos' | 'disponible' | 'pendiente' | 'ocupada'>('todos');
+export function RoomGrid({ rooms, lastUpdatedRoomId, onStatusChange }: RoomGridProps) {
+  const [filter, setFilter] = useState<RoomFilter>('todos');
 
-  // Métricas
-  const total = rooms.length;
-  const disponibles = rooms.filter(r => r.estado === 'disponible').length;
-  const pendientes = rooms.filter(r => r.estado === 'pendiente').length;
-  const ocupadas = rooms.filter(r => r.estado === 'ocupada').length;
+  const disponibles = rooms.filter((r) => r.estado === 'disponible').length;
+  const pendientes = rooms.filter((r) => r.estado === 'pendiente').length;
+  const ocupadas = rooms.filter((r) => r.estado === 'ocupada').length;
 
-  const filteredRooms = filter === 'todos' 
-    ? rooms 
-    : rooms.filter(r => r.estado === filter);
+  const filteredRooms = useMemo(
+    () => (filter === 'todos' ? rooms : rooms.filter((r) => r.estado === filter)),
+    [filter, rooms]
+  );
 
   return (
     <div className="space-y-6">
-      
-      {/* Barra de Filtros & Métricas de Estado */}
       <div className="glass-panel rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-        
-        {/* Tarjetas de Resumen de Métricas */}
         <div className="grid grid-cols-4 gap-3 w-full md:w-auto">
-          
           <button
+            type="button"
             onClick={() => setFilter('todos')}
             className={`px-4 py-2.5 rounded-xl border text-left transition-all ${
               filter === 'todos'
@@ -42,10 +45,11 @@ export const RoomGrid: React.FC<RoomGridProps> = ({ rooms, lastUpdatedRoomId, on
             }`}
           >
             <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Total</div>
-            <div className="text-xl font-bold text-white">{total}</div>
+            <div className="text-xl font-bold text-white">{rooms.length}</div>
           </button>
 
           <button
+            type="button"
             onClick={() => setFilter('disponible')}
             className={`px-4 py-2.5 rounded-xl border text-left transition-all ${
               filter === 'disponible'
@@ -60,6 +64,7 @@ export const RoomGrid: React.FC<RoomGridProps> = ({ rooms, lastUpdatedRoomId, on
           </button>
 
           <button
+            type="button"
             onClick={() => setFilter('pendiente')}
             className={`px-4 py-2.5 rounded-xl border text-left transition-all ${
               filter === 'pendiente'
@@ -74,6 +79,7 @@ export const RoomGrid: React.FC<RoomGridProps> = ({ rooms, lastUpdatedRoomId, on
           </button>
 
           <button
+            type="button"
             onClick={() => setFilter('ocupada')}
             className={`px-4 py-2.5 rounded-xl border text-left transition-all ${
               filter === 'ocupada'
@@ -86,17 +92,14 @@ export const RoomGrid: React.FC<RoomGridProps> = ({ rooms, lastUpdatedRoomId, on
             </div>
             <div className="text-xl font-bold text-rose-400">{ocupadas}</div>
           </button>
-
         </div>
 
-        {/* Título de Vista Grid */}
         <div className="flex items-center space-x-2 text-sm text-gray-400 font-medium">
           <LayoutGrid className="w-4 h-4 text-indigo-400" />
           <span>Vista Kanban Grid ({filteredRooms.length} habitaciones)</span>
         </div>
       </div>
 
-      {/* Grid de Tarjetas de Habitaciones */}
       {filteredRooms.length === 0 ? (
         <div className="glass-panel rounded-2xl p-12 text-center text-gray-400">
           No hay habitaciones en este estado actualmente.
@@ -115,4 +118,4 @@ export const RoomGrid: React.FC<RoomGridProps> = ({ rooms, lastUpdatedRoomId, on
       )}
     </div>
   );
-};
+}
