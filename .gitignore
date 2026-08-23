@@ -29,6 +29,7 @@ ENV/
 
 # Node / Frontend
 node_modules/
+*.tsbuildinfo
 .next/
 out/
 build/
