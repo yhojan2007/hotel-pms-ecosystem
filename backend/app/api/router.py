@@ -1,5 +1,8 @@
+"""Agregador de routers REST de la API v1."""
+
 from fastapi import APIRouter
-from app.api.routes import rooms, guests, bookings, payments, webhooks
+
+from app.api.routes import bookings, guests, payments, rooms, webhooks
 
 api_router = APIRouter()
 
