@@ -1,34 +1,44 @@
-from fastapi import APIRouter, Depends, Request, HTTPException, status
+"""Webhooks de WhatsApp, simulador de demo y confirmación de pagos."""
+
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.session import get_async_db
-from app.agent.transcription import transcribe_audio_from_url
+
 from app.agent import runner as agent_runner
+from app.agent.transcription import transcribe_audio_from_url
 from app.agent.zavu_client import send_whatsapp_message
 from app.core.config import settings
-from app.services import payment_service, booking_service
+from app.db.session import get_async_db
 from app.schemas.payment import PaymentCreate
+from app.services import booking_service, payment_service
 from app.services.payment_gateways.factory import PaymentGatewayFactory
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks & Agente IA"])
 
+
 class AgentSimRequest(BaseModel):
+    """Cuerpo del simulador local (drawer del frontend)."""
+
     sender_contact: str = Field(default="+573001234567", example="+573001234567")
-    message_text: Optional[str] = Field(default=None, example="Hola, ¿tienen habitaciones disponibles del 1 al 5 de agosto?")
+    message_text: Optional[str] = Field(
+        default=None,
+        example="Hola, ¿tienen habitaciones disponibles del 1 al 5 de agosto?",
+    )
     audio_url: Optional[str] = Field(default=None, example="mock://audio_nota_de_voz.ogg")
 
+
 @router.post("/whatsapp")
-async def zavu_whatsapp_webhook(request: Request, db: AsyncSession = Depends(get_async_db)):
-    """
-    Webhook oficial para recibir mensajes entrantes de WhatsApp desde Zavu.
-    Procesa mensajes de texto y notas de voz automáticamente.
-    """
+async def zavu_whatsapp_webhook(
+    request: Request, db: AsyncSession = Depends(get_async_db)
+) -> Dict[str, Any]:
+    """Recibe mensajes de Zavu (texto o audio) y los pasa al agente."""
     payload = await request.json()
-    
+
     sender_contact = payload.get("from") or payload.get("sender", {}).get("phone", "+573000000000")
     message_type = payload.get("type", "text")
-    
+
     text_to_process = ""
 
     if message_type == "audio" or "audio" in payload:
@@ -45,15 +55,15 @@ async def zavu_whatsapp_webhook(request: Request, db: AsyncSession = Depends(get
     return {
         "status": "success",
         "processed_text": text_to_process,
-        "agent_response": agent_response
+        "agent_response": agent_response,
     }
 
+
 @router.post("/agent-sim")
-async def simulate_whatsapp_message(payload: AgentSimRequest, db: AsyncSession = Depends(get_async_db)):
-    """
-    Endpoint de simulación para pruebas locales y demostración en vivo.
-    Permite enviar un mensaje de texto o una URL de audio sin necesidad de webhook externo.
-    """
+async def simulate_whatsapp_message(
+    payload: AgentSimRequest, db: AsyncSession = Depends(get_async_db)
+) -> Dict[str, Any]:
+    """Simula un mensaje de WhatsApp sin webhook externo (demo / tests locales)."""
     text_to_process = payload.message_text
 
     if payload.audio_url or not text_to_process:
@@ -68,8 +78,9 @@ async def simulate_whatsapp_message(payload: AgentSimRequest, db: AsyncSession =
         "status": "success",
         "sender": payload.sender_contact,
         "input_message": text_to_process,
-        "agent_response": agent_response
+        "agent_response": agent_response,
     }
+
 
 @router.post("/payments/{provider}")
 @router.get("/payments/{provider}")
@@ -78,17 +89,15 @@ async def unified_payment_webhook(
     request: Request,
     booking_id: Optional[int] = None,
     monto: Optional[float] = None,
-    db: AsyncSession = Depends(get_async_db)
-):
-    """
-    Webhook unificado de confirmación de pago modular (Wallbit, MercadoPago, Stripe, Mock).
-    
-    Flujo automático:
-    1. Procesa el payload según el proveedor.
-    2. Registra el pago en estado CONFIRMADO.
-    3. Cambia la reserva a CONFIRMADA y la habitación a OCUPADA (Rojo) en el PMS.
-    4. Emite evento por WebSocket en tiempo real al frontend.
-    5. Envía comprobante de reserva confirmado por WhatsApp al huésped a través de Zavu.
+    db: AsyncSession = Depends(get_async_db),
+) -> Dict[str, Any]:
+    """Confirma un pago (Wallbit, MercadoPago, Stripe o mock) y actualiza el PMS.
+
+    Flujo:
+    1. Valida secreto (excepto provider ``mock``).
+    2. Normaliza el payload con la factory de pasarelas.
+    3. Registra el pago y sincroniza reserva + habitación.
+    4. Envía comprobante por WhatsApp si hay huésped.
     """
     if settings.PAYMENT_WEBHOOK_SECRET and provider.lower() != "mock":
         provided_secret = (
@@ -99,7 +108,7 @@ async def unified_payment_webhook(
         if provided_secret != settings.PAYMENT_WEBHOOK_SECRET:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Webhook no autorizado.")
 
-    payload = {}
+    payload: Dict[str, Any] = {}
     if request.method == "POST":
         try:
             payload = await request.json()
@@ -111,7 +120,6 @@ async def unified_payment_webhook(
     if monto:
         payload["monto"] = monto
 
-    # Instanciar el gateway correspondiente según el proveedor usando Factory
     gateway = PaymentGatewayFactory.get_gateway(provider)
     parsed_data = gateway.parse_webhook_payload(payload)
 
@@ -121,18 +129,19 @@ async def unified_payment_webhook(
     referencia = parsed_data.get("referencia", f"ref_{provider}_{target_booking_id}")
 
     if not target_booking_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Falta el ID de reserva en el payload del webhook.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Falta el ID de reserva en el payload del webhook.",
+        )
 
-    # 1. Registrar pago y actualizar estados de Reserva y Habitación
     payment_in = PaymentCreate(
         booking_id=target_booking_id,
         monto=target_monto or 100.0,
         proveedor=provider,
-        referencia_externa=referencia
+        referencia_externa=referencia,
     )
     payment = await payment_service.record_payment(db, payment_in, is_confirmed=is_success)
 
-    # 2. Enviar recibo de confirmación por WhatsApp si fue exitoso
     booking = await booking_service.get_booking_by_id(db, target_booking_id)
     if is_success and booking and booking.guest:
         whatsapp_receipt = (
@@ -154,22 +163,23 @@ async def unified_payment_webhook(
         "is_confirmed": is_success,
         "message": f"Pago procesado por {provider.upper()}. Habitación marcada como OCUPADA (Rojo) en el PMS.",
         "payment_id": payment.id,
-        "booking_id": target_booking_id
+        "booking_id": target_booking_id,
     }
+
 
 @router.get("/mock-pay")
 async def mock_pay_alias(
     booking_id: Optional[int] = None,
     monto: Optional[float] = None,
-    db: AsyncSession = Depends(get_async_db)
-):
-    """Alias rápido de webhook para enlaces de prueba."""
+    db: AsyncSession = Depends(get_async_db),
+) -> Dict[str, Any]:
+    """Atajo GET para confirmar la última reserva pendiente (enlaces de demo)."""
     if booking_id is None:
         latest_pending = await booking_service.get_latest_pending_booking(db)
         if not latest_pending:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="No hay reservas pendientes para confirmar."
+                detail="No hay reservas pendientes para confirmar.",
             )
         booking_id = latest_pending.id
         monto = float(latest_pending.monto)
