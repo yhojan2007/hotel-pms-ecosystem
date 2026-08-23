@@ -1,13 +1,18 @@
+"""Cliente de envío de WhatsApp vía Zavu (o log mock si no hay API key)."""
+
 import logging
 from uuid import uuid4
+
 from app.core.config import settings
 
 logger = logging.getLogger("zavu_client")
 
+
 async def send_whatsapp_message(to_phone: str, message_text: str) -> bool:
-    """
-    Envía un mensaje de texto por WhatsApp a un número de destino utilizando la API de Zavu.
-    Si ZAVU_API_KEY no está configurada, opera en modo MOCK imprimiendo el mensaje en logs para la demo.
+    """Envía texto por WhatsApp.
+
+    Sin ``ZAVU_API_KEY`` / ``ZAVUDEV_API_KEY`` (o con el placeholder del
+    ``.env.example``) solo escribe el mensaje en logs y retorna ``True``.
     """
     api_key = settings.ZAVUDEV_API_KEY or settings.ZAVU_API_KEY
 
@@ -22,7 +27,7 @@ async def send_whatsapp_message(to_phone: str, message_text: str) -> bool:
         from zavudev import AsyncZavudev
 
         async with AsyncZavudev(api_key=api_key, timeout=20.0, max_retries=2) as client:
-            send_params = {
+            send_params: dict[str, str] = {
                 "to": to_phone,
                 "text": message_text,
                 "channel": "whatsapp",
