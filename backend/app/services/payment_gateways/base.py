@@ -1,11 +1,11 @@
+"""Contrato común de pasarelas de pago."""
+
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 
 class BasePaymentGateway(ABC):
-    """
-    Clase base abstracta para pasarelas de pago modulares.
-    Permite intercambiar entre Wallbit, MercadoPago, Stripe o Mock fácilmente.
-    """
+    """Interfaz para generar links de cobro y normalizar webhooks."""
 
     @abstractmethod
     def create_payment_link(self, booking_id: int, monto: float, descripcion: str) -> Dict[str, Any]:
@@ -13,10 +13,12 @@ class BasePaymentGateway(ABC):
         pass
 
     @abstractmethod
-    def parse_webhook_payload(self, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """
-        Analiza el payload recibido por webhook del proveedor de pago.
-        Retorna una estructura estandarizada:
-        { "booking_id": int, "monto": float, "is_success": bool, "referencia": str }
+    def parse_webhook_payload(
+        self, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """Normaliza el webhook del proveedor.
+
+        Retorna:
+            ``{"booking_id": int, "monto": float, "is_success": bool, "referencia": str}``
         """
         pass
